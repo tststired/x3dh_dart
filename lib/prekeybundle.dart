@@ -3,15 +3,17 @@ import 'dart:convert';
 import 'package:x3dh_dart/signedprekey.dart';
 import 'package:x3dh_dart/onetimeprekey.dart';
 import 'package:x3dh_dart/identitykeypair.dart';
+import 'package:x3dh_dart/utils.dart';
 
 
-class PreKeyBundle {
+class PreKeyBundle implements Serde<PreKeyBundle> {
   final IdentityKeyPair identityKeyPair;
   final SignedPreKey signedPreKey;
   final OneTimePreKey oneTimePreKey;
 
   PreKeyBundle({required this.identityKeyPair, required this.signedPreKey, required this.oneTimePreKey});
   
+  @override
   String serializePublic() {
 	return jsonEncode({
 	  'identityKeyPair': jsonDecode(identityKeyPair.serializePublic()),
@@ -20,6 +22,7 @@ class PreKeyBundle {
 	});
   }
 
+  @override
   Future<String> serialize() async {
 	return jsonEncode({
 		'identityKeyPair': jsonDecode(await identityKeyPair.serialize()),

@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 import 'package:x3dh_dart/identitykeypair.dart';
 
-class SignedPreKey {
+class SignedPreKey implements Serde<SignedPreKey> {
   final int id;
   final Signature sig;
   final DateTime tstamp;
@@ -43,6 +43,8 @@ class SignedPreKey {
   Future<bool> verify() async {
     return await Ed25519().verify(x2PubKey.bytes, signature: sig);
   }
+
+  @override
   Future<String> serialize() async {
 	return jsonEncode({
 	  'id': id,
@@ -53,6 +55,7 @@ class SignedPreKey {
 	});
   }
 
+  @override
   String serializePublic() {
 	return jsonEncode({
 		'id': id,

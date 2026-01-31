@@ -1,214 +1,260 @@
 
-// import 'dart:typed_data';
-// import 'dart:convert';
-// import 'package:cryptography/cryptography.dart';
+import 'dart:typed_data';
+import 'dart:convert';
+import 'package:cryptography/cryptography.dart';
+import 'package:x3dh_dart/identitykeypair.dart';
+import 'package:x3dh_dart/signedprekey.dart';
+import 'package:x3dh_dart/onetimeprekey.dart';
+import 'package:x3dh_dart/prekeybundle.dart';
+import 'package:x3dh_dart/utils.dart';
 
-// class X3DHResult {
-//   final Uint8List sharedSecret;
-//   final Uint8List associatedData;
-//   final Uint8List ephemeralKey;
+class X3DHResult implements Serde<X3DHResult> {
+  final Uint8List sharedSecret;
+  final Uint8List assData;
+  X3DHResult({ required this.sharedSecret, required this.assData});
   
-//   X3DHResult({ required this.sharedSecret, required this.associatedData, required this.ephemeralKey});
-// }
+  Future<X3DHResult> deserialize(String json) {
+	throw UnimplementedError();
+  }
+  
+  @override
+  Future<String> serialize() {
+	return Future.value(jsonEncode({
+	  'sharedSecret': base64Encode(sharedSecret),
+	  'assData': base64Encode(assData),
+	}));
+  }
+  
+  @override
+  String serializePublic() {
+	throw UnimplementedError();
+  }
+}
 
-// class X3DH {
-//   /// Initiates the X3DH handshake from Alice's perspective.
-//   /// 
-//   /// Alice generates an ephemeral key pair and performs multiple DH exchanges
-//   /// with Bob's prekey bundle to derive a shared secret.
-//   /// 
-//   /// Parameters:
-//   /// - [aliceIdentityKeyPair]: Alice's long-term identity key pair
-//   /// - [bobPreKeyBundle]: Bob's prekey bundle (received from server)
-//   /// - [info]: Optional context information for KDF (default: "X3DH")
-//   /// 
-//   /// Returns: [X3DHResult] containing the shared secret and ephemeral public key
-//   /// 
-//   /// Throws: [Exception] if the signed prekey verification fails
-//   /// 
-//   static Future<X3DHResult> initiateHandshake({required IdentityKeyPair aliceIdentityKeyPair, required PreKeyBundle bobPreKeyBundle, String info = "X3DH-simplysteps"}) async {
-//     final isValid = await bobPreKeyBundle.verifySignedPreKey();
-//     if (!isValid) {
-//       throw Exception('Failed to verify Bob\'s signed prekey signature');
-//     }
+class X3DHInitialMessage implements Serde<X3DHInitialMessage> {
+  final SimplePublicKey aliceIdKeyPub;
+  final SimplePublicKey aliceEpheKeyPub;
+  final int bobSignedPreKeyId;
+  final int bobOneTimePreKeyId;
+  final String initialCiphertext;
+  
+  X3DHInitialMessage({
+    required this.aliceIdKeyPub,
+	required this.aliceEpheKeyPub,
+    required this.bobSignedPreKeyId,
+    required this.bobOneTimePreKeyId,
+    required this.initialCiphertext,
+  });
+  
+  @override
+  Future<String> serialize() async {
+    return jsonEncode({
+      'aliceIdentityKey': base64Encode(aliceIdKeyPub.bytes),
+      'aliceEphemeralKey': base64Encode(aliceEpheKeyPub.bytes),
+      'bobSignedPreKeyId': bobSignedPreKeyId,
+      'bobOneTimePreKeyId': bobOneTimePreKeyId,
+      'initialCiphertext': initialCiphertext,
+    });
+  }
+  
+  static X3DHInitialMessage deserialize(String json) {
+    final map = jsonDecode(json);
+    return X3DHInitialMessage(
+      aliceIdKeyPub: SimplePublicKey(Uint8List.fromList(base64Decode(map['aliceIdentityKey'])), type: KeyPairType.x25519),
+      aliceEpheKeyPub: SimplePublicKey(Uint8List.fromList(base64Decode(map['aliceEphemeralKey'])), type: KeyPairType.x25519),
+      bobSignedPreKeyId: map['bobSignedPreKeyId'],
+      bobOneTimePreKeyId: map['bobOneTimePreKeyId'],
+      initialCiphertext: map['initialCiphertext'],
+    );
+  }
+  
+  @override
+  String serializePublic() {
+	throw UnimplementedError();
+  }
+}
 
-//     final ephemeralKeyPair = await X25519().newKeyPair();
-//     final ephemeralPubKey = (await ephemeralKeyPair.extractPublicKey()).bytes;
-//     final ephemeralPrivKey = await ephemeralKeyPair.extractPrivateKeyBytes();
+class X3DH {
+  //https://signal.org/docs/specifications/x3dh/#sending-the-initial-message
+  static Future<X3DHInitialMessage> initialMsg({
+    required IdentityKeyPair aliceIdKeyPair, 
+    required PreKeyBundle bobPreKeyBundle, 
+    required String initialMessage,
+    String info = "X3DH-simplysteps"
+  }) async {
+    final isValid = await bobPreKeyBundle.signedPreKey.verify();
+    if (!isValid) {
+      throw Exception('Failed to verify Bob\'s signed prekey signature');
+    }
 
-//     // Perform DH calculations
-//     // DH1 = DH(IK_A, SPK_B)
-//     final dh1 = await _performDH(
-//       aliceIdentityKeyPair.x2PrivKey,
-//       bobPreKeyBundle.signedPreKey.pubKey,
-//     );
+    // Verify the signature was made by the claimed identity key
+    final sigPubKey = bobPreKeyBundle.signedPreKey.sig.publicKey as SimplePublicKey;
+    final bundleIdPubKey = bobPreKeyBundle.identityKeyPair.edPubKey;
+    if (sigPubKey.bytes.length != bundleIdPubKey.bytes.length) {
+      throw Exception('Signed prekey signature does not match bundle identity key');
+    }
+    for (int i = 0; i < sigPubKey.bytes.length; i++) {
+      if (sigPubKey.bytes[i] != bundleIdPubKey.bytes[i]) {
+        throw Exception('Signed prekey signature does not match bundle identity key');
+      }
+    }
 
-//     // DH2 = DH(EK_A, IK_B)
-//     final dh2 = await _performDH(
-//       ephemeralPrivKey,
-//       bobPreKeyBundle.x2IdPubKey,
-//     );
+	// DHX is always Priv, Pub pairing
+    final aliceEphKeyPair = await X25519().newKeyPair();
+	final aliceIdKeyPriv = await aliceIdKeyPair.x2KeyPair.extractPrivateKeyBytes();
+	final bobSignedPreKeyPub = bobPreKeyBundle.signedPreKey.x2PubKey.bytes;
+	final aliceEphKeyPriv = await aliceEphKeyPair.extractPrivateKeyBytes();
+	final bobIdKeyPub = bobPreKeyBundle.identityKeyPair.x2PubKey.bytes;
+	final bobOneTimePreKeyPub = bobPreKeyBundle.oneTimePreKey.x2PubKey.bytes;
+	final aliceIdKeyPub = aliceIdKeyPair.x2PubKey.bytes;
 
-//     // DH3 = DH(EK_A, SPK_B)
-//     final dh3 = await _performDH(
-//       ephemeralPrivKey,
-//       bobPreKeyBundle.signedPreKey.pubKey,
-//     );
+    // DH1 = DH(IK_A, SPK_B)
+    final dh1 = await _diffiehill(aliceIdKeyPriv, bobSignedPreKeyPub);
+    // DH2 = DH(EK_A, IK_B)
+    final dh2 = await _diffiehill(aliceEphKeyPriv, bobIdKeyPub);
+    // DH3 = DH(EK_A, SPK_B)
+    final dh3 = await _diffiehill(aliceEphKeyPriv, bobSignedPreKeyPub);
+	// DH4 = DH(EK_A, OPK_B)
+    final dh4 = await _diffiehill(aliceEphKeyPriv, bobOneTimePreKeyPub);
 
-//     // DH4 = DH(EK_A, OPK_B) - only if one-time prekey is present
-//     Uint8List? dh4;
-//     if (bobPreKeyBundle.oneTimePreKey != null) {
-//       dh4 = await _performDH(
-//         ephemeralPrivKey,
-//         bobPreKeyBundle.oneTimePreKey!.pubKey,
-//       );
-//     }
+    // SK = KDF(DH1 || DH2 || DH3 || DH4)
+    final skey = BytesBuilder();
+    skey.add(dh1);
+    skey.add(dh2);
+    skey.add(dh3);
+    skey.add(dh4);
 
-//     // Concatenate DH outputs: DH1 || DH2 || DH3 || DH4 (if present)
-//     final dhOutputs = BytesBuilder();
-//     dhOutputs.add(dh1);
-//     dhOutputs.add(dh2);
-//     dhOutputs.add(dh3);
-//     if (dh4 != null) {
-//       dhOutputs.add(dh4);
-//     }
+    // AD = Encode(IK_A || IK_B)
+    final assData = BytesBuilder();
+    assData.add(aliceIdKeyPub);
+    assData.add(bobIdKeyPub);
 
-//     // Create associated data: IK_A || IK_B
-//     final associatedData = BytesBuilder();
-//     associatedData.add(aliceIdentityKeyPair.x2PubKey);
-//     associatedData.add(bobPreKeyBundle.x2IdPubKey);
+    // Derive shared secret using HKDF
+    final sharedSecret = await _hkdf(skey.toBytes(), assData.toBytes(), info);
 
-//     // Derive shared secret using HKDF
-//     final sharedSecret = await _deriveSharedSecret(
-//       dhOutputs.toBytes(),
-//       associatedData.toBytes(),
-//       info,
-//     );
+    // Encrypt the initial message with the shared secret
+    final initialCiphertext = await encrypt(
+      sharedSecret: sharedSecret,
+      msg: initialMessage,
+      assData: assData.toBytes(),
+    );
 
-//     return X3DHResult(
-//       sharedSecret: sharedSecret,
-//       associatedData: associatedData.toBytes(),
-//       ephemeralKey: Uint8List.fromList(ephemeralPubKey),
-//     );
-//   }
+    return X3DHInitialMessage(
+      aliceIdKeyPub: aliceIdKeyPair.x2PubKey,
+      aliceEpheKeyPub: await aliceEphKeyPair.extractPublicKey(),
+      bobSignedPreKeyId: bobPreKeyBundle.signedPreKey.id,
+      bobOneTimePreKeyId: bobPreKeyBundle.oneTimePreKey.id,
+      initialCiphertext: initialCiphertext,
+    );
+  }
 
-//   /// Completes the X3DH handshake from Bob's perspective.
-//   /// 
-//   /// Bob uses his identity key pair and prekeys to derive the same shared secret
-//   /// that Alice computed.
-//   /// 
-//   /// Parameters:
-//   /// - [bobIdentityKeyPair]: Bob's long-term identity key pair
-//   /// - [bobSignedPreKey]: Bob's signed prekey that was in the bundle
-//   /// - [bobOneTimePreKey]: Bob's one-time prekey (if used, otherwise null)
-//   /// - [aliceIdentityPubKey]: Alice's identity public key
-//   /// - [aliceEphemeralPubKey]: Alice's ephemeral public key (from handshake)
-//   /// - [info]: Optional context information for KDF (default: "X3DH")
-//   /// 
-//   /// Returns: [X3DHResult] containing the shared secret
-//   static Future<X3DHResult> completeHandshake({
-//     required IdentityKeyPair bobIdentityKeyPair,
-//     required SignedPreKey bobSignedPreKey,
-//     required OneTimePreKey? bobOneTimePreKey,
-//     required Uint8List aliceIdentityPubKey,
-//     required Uint8List aliceEphemeralPubKey,
-//     String info = "X3DH",
-//   }) async {
-//     // Perform DH calculations (same as Alice but with reversed roles)
-//     // DH1 = DH(SPK_B, IK_A)
-//     final dh1 = await _performDH(
-//       bobSignedPreKey.privKey,
-//       aliceIdentityPubKey,
-//     );
+  static Future<X3DHResult> completeHandshake({
+	required IdentityKeyPair bobIdentityKeyPair,
+	required SignedPreKey bobSignedPreKey,
+	required OneTimePreKey bobOneTimePreKey,
+	required Uint8List aliceIdentityPubKey,
+	required Uint8List aliceEphemeralPubKey,
+	required X3DHInitialMessage initialMessage, String info = "X3DH-simplysteps",
+  }) async {
 
-//     // DH2 = DH(IK_B, EK_A)
-//     final dh2 = await _performDH(
-//       bobIdentityKeyPair.x2PrivKey,
-//       aliceEphemeralPubKey,
-//     );
+	final bobSignedPreKeyPriv = await bobSignedPreKey.x2KeyPair.extractPrivateKeyBytes();
+	final bobIdKeyPriv = await bobIdentityKeyPair.x2KeyPair.extractPrivateKeyBytes();
+	final bobOneTimePreKeyPriv = await bobOneTimePreKey.x2KeyPair.extractPrivateKeyBytes();
+	
+    // DH1 = DH(SPK_B, IK_A)
+    final dh1 = await _diffiehill(bobSignedPreKeyPriv, aliceIdentityPubKey);
+    // DH2 = DH(IK_B, EK_A)
+    final dh2 = await _diffiehill(bobIdKeyPriv, aliceEphemeralPubKey);
+    // DH3 = DH(SPK_B, EK_A)
+    final dh3 = await _diffiehill(bobSignedPreKeyPriv, aliceEphemeralPubKey);
+    // DH4 = DH(OPK_B, EK_A)
+    final dh4 = await _diffiehill(bobOneTimePreKeyPriv, aliceEphemeralPubKey);
 
-//     // DH3 = DH(SPK_B, EK_A)
-//     final dh3 = await _performDH(
-//       bobSignedPreKey.privKey,
-//       aliceEphemeralPubKey,
-//     );
+	// SK = KDF(DH1 || DH2 || DH3 || DH4)
+    final skey = BytesBuilder();
+    skey.add(dh1);
+    skey.add(dh2);
+    skey.add(dh3);
+    skey.add(dh4);
 
-//     // DH4 = DH(OPK_B, EK_A) - only if one-time prekey was used
-//     Uint8List? dh4;
-//     if (bobOneTimePreKey != null) {
-//       dh4 = await _performDH(
-//         bobOneTimePreKey.privKey,
-//         aliceEphemeralPubKey,
-//       );
-//     }
+	// AD = Encode(IK_A || IK_B)
+    final assData = BytesBuilder();
+    assData.add(aliceIdentityPubKey);
+    assData.add(bobIdentityKeyPair.x2PubKey.bytes);
 
-//     // Concatenate DH outputs: DH1 || DH2 || DH3 || DH4 (if present)
-//     final dhOutputs = BytesBuilder();
-//     dhOutputs.add(dh1);
-//     dhOutputs.add(dh2);
-//     dhOutputs.add(dh3);
-//     if (dh4 != null) {
-//       dhOutputs.add(dh4);
-//     }
+    final sharedSecret = await _hkdf(skey.toBytes(), assData.toBytes(), info);
 
-//     // Create associated data: IK_A || IK_B
-//     final associatedData = BytesBuilder();
-//     associatedData.add(aliceIdentityPubKey);
-//     associatedData.add(bobIdentityKeyPair.x2PubKey);
+    // Verify the handshake by attempting to decrypt the initial message
+    //https://signal.org/docs/specifications/x3dh/#receiving-the-initial-messag
+    try {
+      await decrypt(
+        sharedSecret: sharedSecret,
+        encryptMsg: initialMessage.initialCiphertext,
+        assData: assData.toBytes(),
+      );
+    } catch (e) {
+      throw Exception('Failed to decrypt initial message: handshake verification failed');
+    }
 
-//     // Derive shared secret using HKDF
-//     final sharedSecret = await _deriveSharedSecret(
-//       dhOutputs.toBytes(),
-//       associatedData.toBytes(),
-//       info,
-//     );
+    return X3DHResult(
+      sharedSecret: sharedSecret,
+      assData: assData.toBytes(),
+    );
+  }
 
-//     return X3DHResult(
-//       sharedSecret: sharedSecret,
-//       associatedData: associatedData.toBytes(),
-//       ephemeralKey: aliceEphemeralPubKey,
-//     );
-//   }
-
-//   /// Performs X25519 Diffie-Hellman key exchange.
-//   static Future<Uint8List> _performDH(List<int> privKey, List<int> bobPublicKey) async {
-//     final privKeyPair = SimpleKeyPairData( privKey, 
-// 	  publicKey: SimplePublicKey(List.filled(32, 0), type: KeyPairType.x25519), //dummy key 
-//       type: KeyPairType.x25519,
-//     );
+  static Future<Uint8List> _diffiehill(List<int> privKey, List<int> foreignPubKey) async {
+    final privKeyPair = SimpleKeyPairData( privKey, 
+	  publicKey: SimplePublicKey(List.filled(32, 0), type: KeyPairType.x25519), //dummy key 
+      type: KeyPairType.x25519,
+    );
     
-//     final pubKey = SimplePublicKey(bobPublicKey, type: KeyPairType.x25519);
-//     final sharedSecret = await X25519().sharedSecretKey(
-//       keyPair: privKeyPair,
-//       remotePublicKey: pubKey,
-//     );
+    final pubKey = SimplePublicKey(foreignPubKey, type: KeyPairType.x25519);
+    final sharedSecret = await X25519().sharedSecretKey(
+      keyPair: privKeyPair,
+      remotePublicKey: pubKey,
+    );
     
-//     return Uint8List.fromList(await sharedSecret.extractBytes());
-//   }
+    return Uint8List.fromList(await sharedSecret.extractBytes());
+  }
 
-//   /// Derives the final shared secret using HKDF-SHA256.
-//   /// 
-//   /// Uses HKDF with:
-//   /// - IKM (Input Key Material): concatenated DH outputs
-//   /// - Salt: associated data (IK_A || IK_B)
-//   /// - Info: context string (default "X3DH")
-//   /// - Length: 32 bytes
-//   static Future<Uint8List> _deriveSharedSecret(
-//     Uint8List dhOutputs,
-//     Uint8List associatedData,
-//     String info,
-//   ) async {
-//     final hkdf = Hkdf(
-//       hmac: Hmac(Sha256()),
-//       outputLength: 32, // 256 bits
-//     );
 
-//     final derivedKey = await hkdf.deriveKey(
-//       secretKey: SecretKey(dhOutputs),
-//       nonce: associatedData,
-//       info: utf8.encode(info),
-//     );
+  static Future<Uint8List> _hkdf(Uint8List dhOutputs, Uint8List assData, String info) async {
+    final hkdf = Hkdf(hmac: Hmac(Sha256()), outputLength: 32);
+    
+	final derivedKey = await hkdf.deriveKey(
+      secretKey: SecretKey(dhOutputs),
+      nonce: assData,
+      info: utf8.encode(info),
+    );
 
-//     return Uint8List.fromList(await derivedKey.extractBytes());
-//   }
-// }
+    return Uint8List.fromList(await derivedKey.extractBytes());
+  }
+
+
+  ///b64-encoded string containing nonce || ciphertext || mac
+  static Future<String> encrypt({required Uint8List sharedSecret, required String msg, required Uint8List assData}) async {
+    final skey = SecretKey(sharedSecret);
+    final msgBytes = utf8.encode(msg);
+    final secretBox = await AesGcm.with256bits().encrypt(msgBytes, secretKey: skey, aad: assData);
+
+    final output = BytesBuilder();
+    output.add(secretBox.nonce);
+    output.add(secretBox.cipherText);
+    output.add(secretBox.mac.bytes);
+
+    return base64Encode(output.toBytes());
+  }
+
+  static Future<String> decrypt({required Uint8List sharedSecret, required String encryptMsg, required Uint8List assData}) async {
+    final skey = SecretKey(sharedSecret);
+    final encryptMsgBytes = base64Decode(encryptMsg);
+
+    final nonce = encryptMsgBytes.sublist(0, 12);
+    final mac = Mac(encryptMsgBytes.sublist(encryptMsgBytes.length - 16));
+    final ciphertext = encryptMsgBytes.sublist(12, encryptMsgBytes.length - 16);
+    final secretBox = SecretBox(ciphertext, nonce: nonce, mac: mac);
+
+    final decrypted = await AesGcm.with256bits().decrypt(secretBox, secretKey: skey, aad: assData);
+    return utf8.decode(decrypted);
+  }
+}

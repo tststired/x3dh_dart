@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 import 'package:x3dh_dart/utils.dart';
 
-class IdentityKeyPair {
+class IdentityKeyPair implements Serde<IdentityKeyPair> {
   final SimpleKeyPair x2KeyPair;
   final SimpleKeyPair edKeyPair;
   late final SimplePublicKey x2PubKey;
@@ -27,6 +27,7 @@ class IdentityKeyPair {
   }
 
   // don't upload this lmao
+  @override
   Future<String> serialize() async {
     return jsonEncode({
       'x2PubKey': base64Encode(x2PubKey.bytes),
@@ -37,6 +38,7 @@ class IdentityKeyPair {
   }
 
   // upload this one though
+  @override
   String serializePublic() {
     return jsonEncode({
       'x2PubKey': base64Encode(x2PubKey.bytes),

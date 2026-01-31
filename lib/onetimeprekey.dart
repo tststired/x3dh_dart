@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 import 'package:x3dh_dart/utils.dart';
 
-class OneTimePreKey {
+class OneTimePreKey implements Serde<OneTimePreKey> {
   final int id;
   final SimpleKeyPair x2KeyPair;
   final SimplePublicKey x2PubKey;
@@ -35,6 +35,7 @@ class OneTimePreKey {
     return keys;
   }
 
+  @override
   Future<String> serialize() async {
     return jsonEncode({
       'id': id,
@@ -43,6 +44,7 @@ class OneTimePreKey {
     });
   }
 
+  @override
   String serializePublic() {
 	return jsonEncode({
 	  'id': id,

@@ -38,3 +38,8 @@ Future<SimpleKeyPair> deserializeKeyPair(String json) async {
 	type: keyPairType,
   );
 }
+
+abstract class Serde<T> {
+  Future<String> serialize();
+  String serializePublic();
+}
