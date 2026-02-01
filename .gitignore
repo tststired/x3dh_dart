@@ -39,3 +39,6 @@ build/
 # IDEs
 .idea/
 .vSCode/
+build/
+x3dh_dart.iml
+pubspec.lock
