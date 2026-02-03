@@ -11,7 +11,7 @@ void main() {
   group('X3DH Protocol Tests', () {
     test('complete handshake between Alice and Bob', () async {
       final bobIdKey = await IdentityKeyPair.generate();
-      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey);
+      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey, 0);
       final bobOneTimePreKey = await OneTimePreKey.generate(1);
       final bobBundle = PreKeyBundle(
         identityKeyPair: bobIdKey,
@@ -52,7 +52,7 @@ void main() {
 
     test('Alice and Bob can exchange multiple messages', () async {
       final bobIdKey = await IdentityKeyPair.generate();
-      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey);
+      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey, 0);
       final bobOneTimePreKey = await OneTimePreKey.generate(1);
       final bobBundle = PreKeyBundle(
         identityKeyPair: bobIdKey,
@@ -106,7 +106,7 @@ void main() {
 
     test('handshake fails with invalid signature', () async {
       final bobIdKey = await IdentityKeyPair.generate();
-      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey);
+      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey, 0);
       final bobOneTimePreKey = await OneTimePreKey.generate(1);
 
       final serialized = await bobSignedPreKey.serialize();
@@ -144,7 +144,7 @@ void main() {
 
     test('handshake fails when identity key does not match signature', () async {
       final bobIdKey = await IdentityKeyPair.generate();
-      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey);
+      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey, 0);
       final bobOneTimePreKey = await OneTimePreKey.generate(1);
 
       final attackerIdKey = await IdentityKeyPair.generate();
@@ -170,7 +170,7 @@ void main() {
 
     test('completeHandshake fails when initial ciphertext is tampered', () async {
       final bobIdKey = await IdentityKeyPair.generate();
-      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey);
+      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey, 0);
       final bobOneTimePreKey = await OneTimePreKey.generate(1);
       final bobBundle = PreKeyBundle(
         identityKeyPair: bobIdKey,
@@ -270,7 +270,7 @@ void main() {
 
     test('X3DHInitialMessage serialization does not leak secrets', () async {
       final bobIdKey = await IdentityKeyPair.generate();
-      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey);
+      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey, 0);
       final bobOneTimePreKey = await OneTimePreKey.generate(1);
       final bobBundle = PreKeyBundle(
         identityKeyPair: bobIdKey,
@@ -300,7 +300,7 @@ void main() {
 
     test('different one-time prekeys produce different shared secrets', () async {
       final bobIdKey = await IdentityKeyPair.generate();
-      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey);
+      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey, 0);
       final aliceIdKey = await IdentityKeyPair.generate();
 
       final bobOneTimePreKey1 = await OneTimePreKey.generate(1);
@@ -392,7 +392,7 @@ void main() {
 
     test('custom info parameter changes derived key', () async {
       final bobIdKey = await IdentityKeyPair.generate();
-      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey);
+      final bobSignedPreKey = await SignedPreKey.generate(bobIdKey, 0);
       final bobOneTimePreKey1 = await OneTimePreKey.generate(1);
       final bobOneTimePreKey2 = await OneTimePreKey.generate(2);
       final bobBundle1 = PreKeyBundle(

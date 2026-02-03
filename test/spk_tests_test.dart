@@ -6,7 +6,7 @@ void main() {
   group('SignedPreKey Tests', () {
     test('generate creates valid signed prekey', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
       expect(signedPreKey.id, equals(0));
       final now = DateTime.now().toUtc();
       final diff = now.difference(signedPreKey.tstamp).inSeconds;
@@ -17,7 +17,7 @@ void main() {
 
     test('signature verification works', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
       
       final isValid = await signedPreKey.verify();
       expect(isValid, isTrue);
@@ -25,7 +25,7 @@ void main() {
 
     test('serialize and deserialize work correctly', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final original = await SignedPreKey.generate(identityKeyPair);
+      final original = await SignedPreKey.generate(identityKeyPair, 0);
       
       final serialized = await original.serialize();
       
@@ -47,19 +47,40 @@ void main() {
 
     test('multiple signed prekeys can be generated', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey1 = await SignedPreKey.generate(identityKeyPair);
-      final signedPreKey2 = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey1 = await SignedPreKey.generate(identityKeyPair, 0);
+      final signedPreKey2 = await SignedPreKey.generate(identityKeyPair, 0);
       
       expect(signedPreKey1.x2PubKey.bytes, isNot(equals(signedPreKey2.x2PubKey.bytes)));
       expect(await signedPreKey1.verify(), isTrue);
       expect(await signedPreKey2.verify(), isTrue);
     });
+
+    test('shouldRotate returns false for fresh key', () async {
+      final identityKeyPair = await IdentityKeyPair.generate();
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
+      
+      expect(signedPreKey.shouldRotate(), isFalse);
+      expect(signedPreKey.shouldRotate(maxAgeDays: 7), isFalse);
+    });
+
+    test('shouldRotate with custom maxAgeDays', () async {
+      final identityKeyPair = await IdentityKeyPair.generate();
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
+      
+      // Should not rotate with very long max age
+      expect(signedPreKey.shouldRotate(maxAgeDays: 365), isFalse);
+      
+      // Should rotate with 0 day threshold
+      expect(signedPreKey.shouldRotate(maxAgeDays: 0), isTrue);
+    });
+
+
   });
 
   group('Integration Tests', () {
     test('complete flow: generate identity, create signed prekey, serialize, deserialize, verify', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
       final identitySerialized = await identityKeyPair.serialize();
       final signedPreKeySerialized = await signedPreKey.serialize();
       final identityDeserialized = await IdentityKeyPair.deserialize(identitySerialized);

@@ -8,7 +8,7 @@ void main() {
   group('PreKeyBundle Tests', () {
     test('create prekey bundle with all components', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
       final oneTimePreKey = await OneTimePreKey.generate(1);
       
       final bundle = PreKeyBundle(
@@ -24,7 +24,7 @@ void main() {
 
     test('serialize and deserialize work correctly', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
       final oneTimePreKey = await OneTimePreKey.generate(5);
       
       final original = PreKeyBundle(
@@ -62,7 +62,7 @@ void main() {
 
     test('serialize and deserialize create equivalent objects', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
       final oneTimePreKey = await OneTimePreKey.generate(10);
       
       final original = PreKeyBundle(
@@ -92,7 +92,7 @@ void main() {
 
     test('serializePublic only contains public keys', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
       final oneTimePreKey = await OneTimePreKey.generate(15);
       
       final bundle = PreKeyBundle(
@@ -115,7 +115,7 @@ void main() {
 
     test('deserialized bundle has valid signature', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
       final oneTimePreKey = await OneTimePreKey.generate(20);
       
       final original = PreKeyBundle(
@@ -134,7 +134,7 @@ void main() {
 
     test('multiple bundles with different one-time prekeys', () async {
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
       
       final bundles = <PreKeyBundle>[];
       for (int i = 0; i < 5; i++) {
@@ -166,7 +166,7 @@ void main() {
     test('complete workflow: generate, serialize, upload scenario', () async {
       // Step 1: Generate all keys locally
       final identityKeyPair = await IdentityKeyPair.generate();
-      final signedPreKey = await SignedPreKey.generate(identityKeyPair);
+      final signedPreKey = await SignedPreKey.generate(identityKeyPair, 0);
       final oneTimePreKeys = await OneTimePreKey.generateBatch(10);
       
       // Step 2: Create bundle with first one-time prekey

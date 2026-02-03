@@ -14,8 +14,8 @@ class SignedPreKey implements Serde<SignedPreKey> {
 
   SignedPreKey._({required this.x2KeyPair, required this.x2PubKey, required this.id, required this.sig, required this.tstamp});
 
-  //hardcode id, we're sacking forward secrecy we'll never rotate this key
-  static Future<SignedPreKey> generate(IdentityKeyPair identityKeyPair) async {
+  //change to flexible id, we're sacking forward secrecy we'll actually rotate this key now 
+  static Future<SignedPreKey> generate(IdentityKeyPair identityKeyPair, int id) async {
     final keyPair = await X25519().newKeyPair();
     final pubKey = (await keyPair.extractPublicKey());
 
@@ -32,7 +32,7 @@ class SignedPreKey implements Serde<SignedPreKey> {
     final sig = await Ed25519().sign(pubKey.bytes, keyPair: idEdPrivkey);
 
     return SignedPreKey._(
-      id: 0,
+      id: id,
       sig: sig,
       tstamp: DateTime.now().toUtc(), 
 	  x2KeyPair: keyPair,
@@ -42,6 +42,12 @@ class SignedPreKey implements Serde<SignedPreKey> {
 
   Future<bool> verify() async {
     return await Ed25519().verify(x2PubKey.bytes, signature: sig);
+  }
+
+  bool shouldRotate({int maxAgeDays = 7}) {
+    final now = DateTime.now().toUtc();
+    final age = now.difference(tstamp);
+    return age.inDays >= maxAgeDays;
   }
 
   @override

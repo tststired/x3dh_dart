@@ -30,7 +30,7 @@ import 'package:x3dh_dart/x3dh_dart.dart';
 
 // Bob's setup (recipient)
 final bobIdKey = await IdentityKeyPair.generate();
-final bobSignedPreKey = await SignedPreKey.generate(bobIdKey);
+final bobSignedPreKey = await SignedPreKey.generate(bobIdKey, 0);
 final bobOneTimePreKey = await OneTimePreKey.generate(1);
 
 final bobBundle = PreKeyBundle(
