@@ -31,6 +31,13 @@ class X3DHResult implements Serde<X3DHResult> {
   }
 }
 
+class X3DHInitialResult {
+  final X3DHInitialMessage initialMessage;
+  final Uint8List sharedSecret;
+  final Uint8List assData;
+  X3DHInitialResult({required this.initialMessage, required this.sharedSecret, required this.assData});
+}
+
 class X3DHInitialMessage implements Serde<X3DHInitialMessage> {
   final SimplePublicKey aliceIdKeyPub;
   final SimplePublicKey aliceEpheKeyPub;
@@ -76,7 +83,7 @@ class X3DHInitialMessage implements Serde<X3DHInitialMessage> {
 
 class X3DH {
   //https://signal.org/docs/specifications/x3dh/#sending-the-initial-message
-  static Future<X3DHInitialMessage> initialMsg({
+  static Future<X3DHInitialResult> initialMsg({
     required IdentityKeyPair aliceIdKeyPair, 
     required PreKeyBundle bobPreKeyBundle, 
     required String initialMessage,
@@ -103,7 +110,7 @@ class X3DH {
     final aliceEphKeyPair = await X25519().newKeyPair();
 	final aliceIdKeyPriv = await aliceIdKeyPair.x2KeyPair.extractPrivateKeyBytes();
 	final bobSignedPreKeyPub = bobPreKeyBundle.signedPreKey.x2PubKey.bytes;
-	final aliceEphKeyPriv = await aliceEphKeyPair.extractPrivateKeyBytes();
+	final aliceEphKeyPriv = Uint8List.fromList(await aliceEphKeyPair.extractPrivateKeyBytes());
 	final bobIdKeyPub = bobPreKeyBundle.identityKeyPair.x2PubKey.bytes;
 	final bobOneTimePreKeyPub = bobPreKeyBundle.oneTimePreKey.x2PubKey.bytes;
 	final aliceIdKeyPub = aliceIdKeyPair.x2PubKey.bytes;
@@ -116,6 +123,11 @@ class X3DH {
     final dh3 = await _diffiehill(aliceEphKeyPriv, bobSignedPreKeyPub);
 	// DH4 = DH(EK_A, OPK_B)
     final dh4 = await _diffiehill(aliceEphKeyPriv, bobOneTimePreKeyPub);
+
+    // Zero the ephemeral private key bytes from memory after all DH operations
+    for (int i = 0; i < aliceEphKeyPriv.length; i++) {
+      aliceEphKeyPriv[i] = 0;
+    }
 
     // SK = KDF(DH1 || DH2 || DH3 || DH4)
     final skey = BytesBuilder();
@@ -139,12 +151,17 @@ class X3DH {
       assData: assData.toBytes(),
     );
 
-    return X3DHInitialMessage(
+    final initialMsg = X3DHInitialMessage(
       aliceIdKeyPub: aliceIdKeyPair.x2PubKey,
       aliceEpheKeyPub: await aliceEphKeyPair.extractPublicKey(),
       bobSignedPreKeyId: bobPreKeyBundle.signedPreKey.id,
       bobOneTimePreKeyId: bobPreKeyBundle.oneTimePreKey.id,
       initialCiphertext: initialCiphertext,
+    );
+    return X3DHInitialResult(
+      initialMessage: initialMsg,
+      sharedSecret: sharedSecret,
+      assData: assData.toBytes(),
     );
   }
 

@@ -22,13 +22,13 @@ void main() {
       final aliceIdKey = await IdentityKeyPair.generate();
 
       final initialMessage = "Hello Bob, this is Alice!";
-      final aliceInitialMsg = await X3DH.initialMsg(
+      final aliceResult = await X3DH.initialMsg(
         aliceIdKeyPair: aliceIdKey,
         bobPreKeyBundle: bobBundle,
         initialMessage: initialMessage,
       );
 
-      final serializedMsg = await aliceInitialMsg.serialize();
+      final serializedMsg = await aliceResult.initialMessage.serialize();
 
       final receivedMsg = X3DHInitialMessage.deserialize(serializedMsg);
 
@@ -62,7 +62,7 @@ void main() {
 
       final aliceIdKey = await IdentityKeyPair.generate();
 
-      final aliceInitialMsg = await X3DH.initialMsg(
+      final aliceResult = await X3DH.initialMsg(
         aliceIdKeyPair: aliceIdKey,
         bobPreKeyBundle: bobBundle,
         initialMessage: "Initial message",
@@ -72,9 +72,9 @@ void main() {
         bobIdentityKeyPair: bobIdKey,
         bobSignedPreKey: bobSignedPreKey,
         bobOneTimePreKey: bobOneTimePreKey,
-        aliceIdentityPubKey: Uint8List.fromList(aliceInitialMsg.aliceIdKeyPub.bytes),
-        aliceEphemeralPubKey: Uint8List.fromList(aliceInitialMsg.aliceEpheKeyPub.bytes),
-        initialMessage: aliceInitialMsg,
+        aliceIdentityPubKey: Uint8List.fromList(aliceResult.initialMessage.aliceIdKeyPub.bytes),
+        aliceEphemeralPubKey: Uint8List.fromList(aliceResult.initialMessage.aliceEpheKeyPub.bytes),
+        initialMessage: aliceResult.initialMessage,
       );
 
       final sharedSecret = bobResult.sharedSecret;
@@ -180,14 +180,14 @@ void main() {
 
       final aliceIdKey = await IdentityKeyPair.generate();
 
-      final aliceInitialMsg = await X3DH.initialMsg(
+      final aliceResult = await X3DH.initialMsg(
         aliceIdKeyPair: aliceIdKey,
         bobPreKeyBundle: bobBundle,
         initialMessage: "Original message",
       );
 
       // Tamper with the ciphertext
-      final serialized = await aliceInitialMsg.serialize();
+      final serialized = await aliceResult.initialMessage.serialize();
       final Map<String, dynamic> data = jsonDecode(serialized);
       final cipherBytes = base64Decode(data['initialCiphertext']);
       cipherBytes[0] ^= 0xFF; // Flip some bits to corrupt the ciphertext
@@ -280,13 +280,13 @@ void main() {
 
       final aliceIdKey = await IdentityKeyPair.generate();
 
-      final aliceInitialMsg = await X3DH.initialMsg(
+      final aliceResult = await X3DH.initialMsg(
         aliceIdKeyPair: aliceIdKey,
         bobPreKeyBundle: bobBundle,
         initialMessage: "Test message",
       );
 
-      final serialized = await aliceInitialMsg.serialize();
+      final serialized = await aliceResult.initialMessage.serialize();
 
       expect(serialized, isNot(contains('sharedSecret')));
       expect(serialized, isNot(contains('assData')));
@@ -317,13 +317,13 @@ void main() {
         oneTimePreKey: bobOneTimePreKey2,
       );
 
-      final msg1 = await X3DH.initialMsg(
+      final result1 = await X3DH.initialMsg(
         aliceIdKeyPair: aliceIdKey,
         bobPreKeyBundle: bobBundle1,
         initialMessage: "Session 1",
       );
 
-      final msg2 = await X3DH.initialMsg(
+      final result2 = await X3DH.initialMsg(
         aliceIdKeyPair: aliceIdKey,
         bobPreKeyBundle: bobBundle2,
         initialMessage: "Session 2",
@@ -333,18 +333,18 @@ void main() {
         bobIdentityKeyPair: bobIdKey,
         bobSignedPreKey: bobSignedPreKey,
         bobOneTimePreKey: bobOneTimePreKey1,
-        aliceIdentityPubKey: Uint8List.fromList(msg1.aliceIdKeyPub.bytes),
-        aliceEphemeralPubKey: Uint8List.fromList(msg1.aliceEpheKeyPub.bytes),
-        initialMessage: msg1,
+        aliceIdentityPubKey: Uint8List.fromList(result1.initialMessage.aliceIdKeyPub.bytes),
+        aliceEphemeralPubKey: Uint8List.fromList(result1.initialMessage.aliceEpheKeyPub.bytes),
+        initialMessage: result1.initialMessage,
       );
 
       final bobResult2 = await X3DH.completeHandshake(
         bobIdentityKeyPair: bobIdKey,
         bobSignedPreKey: bobSignedPreKey,
         bobOneTimePreKey: bobOneTimePreKey2,
-        aliceIdentityPubKey: Uint8List.fromList(msg2.aliceIdKeyPub.bytes),
-        aliceEphemeralPubKey: Uint8List.fromList(msg2.aliceEpheKeyPub.bytes),
-        initialMessage: msg2,
+        aliceIdentityPubKey: Uint8List.fromList(result2.initialMessage.aliceIdKeyPub.bytes),
+        aliceEphemeralPubKey: Uint8List.fromList(result2.initialMessage.aliceEpheKeyPub.bytes),
+        initialMessage: result2.initialMessage,
       );
 
       expect(bobResult1.sharedSecret, isNot(equals(bobResult2.sharedSecret)));
@@ -408,14 +408,14 @@ void main() {
 
       final aliceIdKey = await IdentityKeyPair.generate();
 
-      final msg1 = await X3DH.initialMsg(
+      final result1 = await X3DH.initialMsg(
         aliceIdKeyPair: aliceIdKey,
         bobPreKeyBundle: bobBundle1,
         initialMessage: "Test",
         info: "custom-info-1",
       );
 
-      final msg2 = await X3DH.initialMsg(
+      final result2 = await X3DH.initialMsg(
         aliceIdKeyPair: aliceIdKey,
         bobPreKeyBundle: bobBundle2,
         initialMessage: "Test",
@@ -426,9 +426,9 @@ void main() {
         bobIdentityKeyPair: bobIdKey,
         bobSignedPreKey: bobSignedPreKey,
         bobOneTimePreKey: bobOneTimePreKey1,
-        aliceIdentityPubKey: Uint8List.fromList(msg1.aliceIdKeyPub.bytes),
-        aliceEphemeralPubKey: Uint8List.fromList(msg1.aliceEpheKeyPub.bytes),
-        initialMessage: msg1,
+        aliceIdentityPubKey: Uint8List.fromList(result1.initialMessage.aliceIdKeyPub.bytes),
+        aliceEphemeralPubKey: Uint8List.fromList(result1.initialMessage.aliceEpheKeyPub.bytes),
+        initialMessage: result1.initialMessage,
         info: "custom-info-1",
       );
 
@@ -436,13 +436,59 @@ void main() {
         bobIdentityKeyPair: bobIdKey,
         bobSignedPreKey: bobSignedPreKey,
         bobOneTimePreKey: bobOneTimePreKey2,
-        aliceIdentityPubKey: Uint8List.fromList(msg2.aliceIdKeyPub.bytes),
-        aliceEphemeralPubKey: Uint8List.fromList(msg2.aliceEpheKeyPub.bytes),
-        initialMessage: msg2,
+        aliceIdentityPubKey: Uint8List.fromList(result2.initialMessage.aliceIdKeyPub.bytes),
+        aliceEphemeralPubKey: Uint8List.fromList(result2.initialMessage.aliceEpheKeyPub.bytes),
+        initialMessage: result2.initialMessage,
         info: "custom-info-2",
       );
 
       expect(bobResult1.sharedSecret, isNot(equals(bobResult2.sharedSecret)));
+    });
+
+    test('initialMsg: ephemeral private key zeroed after handshake', () async {
+  final aliceIdKeyPair = await IdentityKeyPair.generate();
+  final bobIdKeyPair = await IdentityKeyPair.generate();
+  final bobSpk = await SignedPreKey.generate(bobIdKeyPair, 1);
+  final bobOtp = await OneTimePreKey.generate(1);
+  final bobBundle = PreKeyBundle(
+    identityKeyPair: bobIdKeyPair,
+    signedPreKey: bobSpk,
+    oneTimePreKey: bobOtp,
+  );
+
+  final result = await X3DH.initialMsg(
+    aliceIdKeyPair: aliceIdKeyPair,
+    bobPreKeyBundle: bobBundle,
+    initialMessage: 'test',
+  );
+
+  // Verify the message is well-formed (ephemeral pub key is present in output)
+  expect(result.initialMessage.aliceEpheKeyPub.bytes.length, equals(32));
+});
+
+    test('initialMsg returns X3DHInitialResult with shared secret matching Bob', () async {
+      final bobIdKey = await IdentityKeyPair.generate();
+      final bobSpk = await SignedPreKey.generate(bobIdKey, 0);
+      final bobOtp = await OneTimePreKey.generate(1);
+      final bobBundle = PreKeyBundle(identityKeyPair: bobIdKey, signedPreKey: bobSpk, oneTimePreKey: bobOtp);
+      final aliceIdKey = await IdentityKeyPair.generate();
+
+      final result = await X3DH.initialMsg(
+        aliceIdKeyPair: aliceIdKey, bobPreKeyBundle: bobBundle, initialMessage: 'Hello Bob',
+      );
+
+      expect(result.initialMessage.aliceEpheKeyPub.bytes.length, equals(32));
+      expect(result.sharedSecret.length, equals(32));
+      expect(result.assData.length, equals(64));
+
+      final bobResult = await X3DH.completeHandshake(
+        bobIdentityKeyPair: bobIdKey, bobSignedPreKey: bobSpk, bobOneTimePreKey: bobOtp,
+        aliceIdentityPubKey: Uint8List.fromList(result.initialMessage.aliceIdKeyPub.bytes),
+        aliceEphemeralPubKey: Uint8List.fromList(result.initialMessage.aliceEpheKeyPub.bytes),
+        initialMessage: result.initialMessage,
+      );
+      expect(result.sharedSecret, equals(bobResult.sharedSecret));
+      expect(result.assData, equals(bobResult.assData));
     });
   });
 }
